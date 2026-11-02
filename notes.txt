@@ -1,0 +1,1 @@
+Dummy file touched by protection probes.
