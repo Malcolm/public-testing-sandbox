@@ -5,6 +5,7 @@ name: bot-approve
 # and/or Code Owners review on main?
 on:
   workflow_dispatch:
+    # checkov:skip=CKV_GHA_7:Not a build: probe that approves PR number `pr` (typed number); nothing is built.
     inputs:
       pr:
         description: "PR number to approve"
