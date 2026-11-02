@@ -1,0 +1,54 @@
+name: deploy
+
+# Rehearsal of the deploy-on-merge flow. "Deploy" only prints the pinned digest; nothing is called.
+# Environments (settings, not code): dev = branch rule main; prod = branch rule main + required
+# reviewer + prevent self-review.
+on:
+  push:
+    branches: [main]
+    paths: [envs/**]
+  workflow_dispatch:
+
+permissions: {}
+
+# One group per stack, never cancelled (apply workflows never cancel).
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  dev:
+    name: deploy dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: dev
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Print the dev pin
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        run: |
+          echo "actor=$ACTOR triggering_actor=$TRIGGERING_ACTOR"
+          grep '^image:' envs/dev.yaml
+
+  prod:
+    name: deploy prod
+    needs: dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: prod
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Print the prod pin
+        shell: bash
+        run: grep '^image:' envs/prod.yaml

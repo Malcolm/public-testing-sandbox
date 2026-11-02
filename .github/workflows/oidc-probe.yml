@@ -1,0 +1,33 @@
+name: oidc-probe
+
+# Probe for the OIDC subject-pinning runbook step 3: a job naming environment tofu-probe.
+# From main it runs and prints the token's sub claim (claim only, never the token). From any other
+# branch the environment's deployment-branch rule must refuse it before it starts.
+# The audience is deliberately not a cloud provider: no cloud trusts this repo.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: oidc-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: probe tofu-probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: tofu-probe
+    permissions:
+      id-token: write # mint a GitHub OIDC token to read its sub claim
+    steps:
+      - name: Print the sub claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          jwt="$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=rehearsal.example.invalid" | jq -er .value)"
+          p="$(cut -d. -f2 <<<"$jwt" | tr '_-' '/+')"
+          while [ $((${#p} % 4)) -ne 0 ]; do p="$p="; done
+          base64 -d <<<"$p" | jq -r .sub

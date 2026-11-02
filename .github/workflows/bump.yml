@@ -1,0 +1,79 @@
+name: bump
+
+# Rehearses the GitOps dev bump: a build pipeline would call this with the new image digest.
+# Here the digest is a dummy (sha256 of the run id). The PR is opened with GITHUB_TOKEN, no app, no PAT.
+on:
+  workflow_dispatch:
+    inputs:
+      post_status:
+        description: "Validate here and post the 'validate' commit status on the bot commit"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: bump-dev
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: bump dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # create the bot branch and commit through the contents API
+      pull-requests: write # open the bump PR
+      statuses: write # post the 'validate' commit status on the bot commit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write the bumped env file
+        id: file
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          digest="$(printf 'dummy-dev-%s' "$RUN_ID" | sha256sum | cut -d' ' -f1)"
+          mkdir -p "$RUNNER_TEMP/envs"
+          sed -E "s/@sha256:[0-9a-f]{64}$/@sha256:$digest/" envs/dev.yaml > "$RUNNER_TEMP/envs/dev.yaml"
+          bash scripts/check-envs.sh "$RUNNER_TEMP/envs"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Push the bot branch and open the PR
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          DIGEST: ${{ steps.file.outputs.digest }}
+        run: |
+          set -euo pipefail
+          branch="bot/bump-dev-$RUN_ID"
+          base="$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)"
+          gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$base" --silent
+          blob="$(gh api "repos/$REPO/contents/envs/dev.yaml?ref=main" --jq .sha)"
+          commit="$(gh api -X PUT "repos/$REPO/contents/envs/dev.yaml" \
+            -f message="bump dev to sha256:${DIGEST:0:12}" -f branch="$branch" -f sha="$blob" \
+            -f content="$(base64 -w0 "$RUNNER_TEMP/envs/dev.yaml")" --jq .commit.sha)"
+          gh pr create -R "$REPO" --base main --head "$branch" \
+            --title "bump dev to sha256:${DIGEST:0:12}" \
+            --body "Opened by bump.yml run $RUN_ID with GITHUB_TOKEN. Dummy digest."
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Post the 'validate' status on the bot commit
+        if: inputs.post_status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COMMIT: ${{ steps.pr.outputs.commit }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$REPO/statuses/$COMMIT" -f state=success -f context=validate \
+            -f description="check-envs.sh passed in bump.yml" -f target_url="$RUN_URL" --silent

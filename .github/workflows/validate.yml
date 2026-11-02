@@ -1,0 +1,30 @@
+name: validate
+
+# The required check on main. Bot PRs opened with GITHUB_TOKEN get no run from this
+# (GitHub does not start workflows for GITHUB_TOKEN events); bump.yml posts the same check name
+# as a commit status instead.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: validate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Env files pin one image by digest
+        shell: bash
+        run: bash scripts/check-envs.sh envs

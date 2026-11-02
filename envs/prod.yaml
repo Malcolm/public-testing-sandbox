@@ -1,0 +1,3 @@
+# Dummy pin, nothing pulls it.
+service: hello
+image: example.invalid/hello@sha256:99026a36eecc52ec312916ea822caaaab0425c14dc66cbab45fc53ff0bbccfa6

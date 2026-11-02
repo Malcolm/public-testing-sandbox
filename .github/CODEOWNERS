@@ -1,0 +1,4 @@
+# Rehearsal: every path needs the owner's review. In a real repo the prod file would name a team.
+*                   @Malcolm
+/envs/prod.yaml     @Malcolm
+/.github/           @Malcolm
