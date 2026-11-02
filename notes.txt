@@ -1,1 +1,2 @@
 Dummy file touched by protection probes.
+Second probe: approval from a workflow that exists only on an unmerged branch.
