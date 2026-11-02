@@ -4,6 +4,7 @@ name: bump
 # Here the digest is a dummy (sha256 of the run id). The PR is opened with GITHUB_TOKEN, no app, no PAT.
 on:
   workflow_dispatch:
+    # checkov:skip=CKV_GHA_7:Not a build: the only input is a boolean that switches the status post; output is a PR a human reviews.
     inputs:
       post_status:
         description: "Validate here and post the 'validate' commit status on the bot commit"
